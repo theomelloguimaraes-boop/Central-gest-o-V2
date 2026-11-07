@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Central de Gestão</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--tx:#1b2330;--mu:#6b7686;--bd:#e4e7ec;--pr:#2457d6;--ok:#17894a;--okb:#e2f5ea;--wa:#a86b00;--wab:#fff1d0;--er:#c62828;--erb:#fde7e7;--nb:#eaeef5;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#12161d;--card:#1b212b;--tx:#e8ecf2;--mu:#9aa5b5;--bd:#2c3441;--pr:#6c93ff;--ok:#4cd08a;--okb:#16342a;--wa:#f0b64a;--wab:#3a2e12;--er:#ff7b7b;--erb:#3d1c1c;--nb:#262e3b}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#12161d;--card:#1b212b;--tx:#e8ecf2;--mu:#9aa5b5;--bd:#2c3441;--pr:#6c93ff;--ok:#4cd08a;--okb:#16342a;--wa:#f0b64a;--wab:#3a2e12;--er:#ff7b7b;--erb:#3d1c1c;--nb:#262e3b}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.app{display:flex;min-height:100vh}
+nav{width:210px;background:var(--card);border-right:1px solid var(--bd);padding:18px 12px;position:sticky;top:0;height:100vh;flex-shrink:0}
+nav h1{font-size:16px;margin:0 8px 18px}nav button{display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:0;background:none;color:var(--mu);padding:10px;border-radius:8px;font:inherit;cursor:pointer;margin-bottom:2px}
+nav button.on{background:var(--nb);color:var(--tx);font-weight:600}
+main{flex:1;padding:20px;max-width:1000px;min-width:0}
+h2{margin:0 0 14px;font-size:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px}
+.k small{color:var(--mu);display:block}.k b{font-size:21px}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:11px 0;border-top:1px solid var(--bd)}
+.row:first-child{border-top:0}.row small{color:var(--mu)}
+.tag{padding:3px 9px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
+.paid{background:var(--okb);color:var(--ok)}.soon{background:var(--wab);color:var(--wa)}.late{background:var(--erb);color:var(--er)}.pend{background:var(--nb);color:var(--mu)}
+button.b,a.b{border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 12px;border-radius:8px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block}
+button.p,a.p{background:var(--pr);color:#fff;border-color:var(--pr)}
+input,select,textarea{width:100%;padding:9px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
+.bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.modal{position:fixed;inset:0;background:#0008;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:20px 12px;z-index:20}
+.modal .card{width:100%;max-width:480px}
+.demo{font-size:11px;background:var(--wab);color:var(--wa);padding:2px 6px;border-radius:6px;margin-left:6px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:700px){.app{flex-direction:column}nav{width:100%;height:auto;position:fixed;bottom:0;left:0;right:0;top:auto;display:flex;gap:2px;padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));border-right:0;border-top:1px solid var(--bd);z-index:10}nav h1{display:none}nav button{flex-direction:column;gap:0;font-size:11px;padding:6px 2px;text-align:center;align-items:center}main{padding:14px 12px 90px}}
+</style></head><body>
+<div class="app"><nav id="nav"></nav><main id="main">Carregando…</main></div>
+<div id="md"></div>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const brl=n=>(+n||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const pad=n=>String(n).padStart(2,"0");
+const ymd=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const TODAY=ymd(new Date()),MONTH=TODAY.slice(0,7);
+const fd=s=>s?s.split("-").reverse().join("/"):"";
+const dim=(y,m)=>new Date(y,m,0).getDate();
+const dueOf=(mk,day)=>{const[y,m]=mk.split("-").map(Number);return mk+"-"+pad(Math.min(day,dim(y,m)))};
+const dayDiff=(a,b)=>Math.round((new Date(b)-new Date(a))/864e5);
+let db=null,S={members:{},charges:{},companies:{},audit:[]},view="dash",ready=0,busy=new Set(),filter="todos",q="";
+const col=n=>db.collection(n);
+async function log(t){try{await col("audit").doc().set({at:new Date().toISOString(),text:t})}catch(e){}}
+const rem=c=>Math.max(0,c.amount-(c.paid||0));
+function status(c){if(rem(c)<.005)return"paid";if(c.due<TODAY)return"late";if(dayDiff(TODAY,c.due)<=5)return"soon";return"pend"}
+const LBL={paid:"Pago",soon:"Vence em breve",late:"Atrasado",pend:"Em aberto"};
+function discOf(m){const c=S.companies[m.companyId];return c?+c.discount||0:0}
+async function ensureCharges(){
+  for(const m of Object.values(S.members)){
+    if(m.active===false)continue;
+    let[y,mo]=(m.createdAt||TODAY).slice(0,7).split("-").map(Number),n=0;
+    while((y+"-"+pad(mo))<=MONTH&&n++<24){
+      const mk=y+"-"+pad(mo),id=m.id+"_"+mk;
+      if(!S.charges[id]&&!busy.has(id)){busy.add(id);
+        await col("charges").doc(id).set({memberId:m.id,name:m.name,plate:m.plate,month:mk,due:dueOf(mk,+m.day),amount:+(m.amount*(1-discOf(m)/100)).toFixed(2),paid:0,payments:[]}).catch(()=>{});}
+      mo++;if(mo>12){mo=1;y++}
+    }
+  }
+}
+function nav(){const it=[["dash","▦","Painel"],["mem","☺","Mensalistas"],["emp","▣","Empresas"],["log","≡","Histórico"]];
+  $("#nav").innerHTML="<h1>Central de Gestão</h1>"+it.map(([k,i,t])=>`<button class="${view===k?"on":""}" onclick="go('${k}')"><span>${i}</span>${t}</button>`).join("")}
+function go(v){view=v;render()}
+function render(){nav();if(!ready){return}({dash,mem,emp,log:lg})[view]()}
+function chargeRow(c){const s=status(c);return`<div class="row"><div><b>${esc(c.name)}</b> <small>${esc(c.plate)}</small><br><small>Vence ${fd(c.due)} · ${brl(c.amount)}${c.paid&&s!=="paid"?" · falta "+brl(rem(c)):""}</small></div><div style="display:flex;gap:6px;align-items:center"><span class="tag ${s}">${LBL[s]}</span><button class="b" onclick="openM('${c.memberId}')">Abrir</button></div></div>`}
+function dash(){
+  const ch=Object.values(S.charges),cur=ch.filter(c=>c.month===MONTH),open=ch.filter(c=>rem(c)>=.005);
+  const act=Object.values(S.members).filter(m=>m.active!==false).length;
+  const late=open.filter(c=>status(c)==="late"),soon=open.filter(c=>status(c)==="soon"),pend=cur.filter(c=>rem(c)>=.005&&status(c)!=="late");
+  const sum=a=>a.reduce((t,c)=>t+rem(c),0);
+  const list=ch.filter(c=>c.month===MONTH||rem(c)>=.005).sort((a,b)=>a.due.localeCompare(b.due));
+  const f=filter==="todos"?list:list.filter(c=>status(c)===filter);
+  $("#main").innerHTML=`<h2>Painel</h2><div class="grid">
+  <div class="card k"><small>Mensalistas ativos</small><b>${act}</b></div>
+  <div class="card k"><small>Recebido no mês</small><b>${brl(cur.reduce((t,c)=>t+(c.paid||0),0))}</b></div>
+  <div class="card k"><small>Pendente</small><b>${brl(sum(pend))}</b></div>
+  <div class="card k"><small>Atrasado</small><b style="color:var(--er)">${brl(sum(late))}</b></div>
+  <div class="card k"><small>Perto de vencer</small><b>${soon.length}</b></div>
+  <div class="card k"><small>Previsto no mês</small><b>${brl(cur.reduce((t,c)=>t+c.amount,0))}</b></div></div>
+  <div class="bar">${["todos","paid","soon","late","pend"].map(k=>`<button class="b ${filter===k?"p":""}" onclick="filter='${k}';render()">${k==="todos"?"Todas":LBL[k]}</button>`).join("")}</div>
+  <div class="card">${f.map(chargeRow).join("")||"<small>Nenhuma cobrança.</small>"}</div>`}
+function mem(){
+  const l=Object.values(S.members).filter(m=>(m.name+m.plate).toLowerCase().includes(q.toLowerCase())).sort((a,b)=>a.name.localeCompare(b.name));
+  $("#main").innerHTML=`<h2>Mensalistas</h2><div class="bar"><input id="q" style="flex:1;min-width:140px" placeholder="Buscar nome ou placa" value="${esc(q)}" oninput="q=this.value;mem();$('#q').focus()"><button class="b p" onclick="editM()">+ Novo</button></div>
+  <div class="card">${l.map(m=>`<div class="row"><div><b>${esc(m.name)}</b>${m.demo?'<span class="demo">FICTÍCIO</span>':""}<br><small>${esc(m.plate)} · ${esc(S.companies[m.companyId]?.name||"Sem empresa")} · dia ${m.day} · ${brl(m.amount)}${m.active===false?" · INATIVO":""}</small></div><button class="b" onclick="openM('${m.id}')">Abrir</button></div>`).join("")||"<small>Nenhum cadastro.</small>"}</div>`}
+function emp(){
+  const l=Object.values(S.companies);
+  $("#main").innerHTML=`<h2>Empresas e parcerias</h2><div class="bar"><button class="b p" onclick="editC()">+ Nova empresa</button></div>
+  <div class="card">${l.map(c=>{const n=Object.values(S.members).filter(m=>m.companyId===c.id&&m.active!==false).length;return`<div class="row"><div><b>${esc(c.name)}</b><br><small>${n} mensalista(s) ativo(s) · desconto ${c.discount||0}%${c.notes?" · "+esc(c.notes):""}</small></div><button class="b" onclick="editC('${c.id}')">Editar</button></div>`}).join("")||"<small>Nenhuma empresa.</small>"}</div>
+  <p><small>O desconto vale para novas mensalidades geradas. Cobranças já criadas não mudam.</small></p>`}
+function lg(){
+  $("#main").innerHTML=`<h2>Histórico e backup</h2><div class="bar"><button class="b p" onclick="backup()">Baixar backup (JSON)</button></div><div class="card">${[...S.audit].sort((a,b)=>b.at.localeCompare(a.at)).slice(0,100).map(a=>`<div class="row"><span>${esc(a.text)}</span><small>${new Date(a.at).toLocaleString("pt-BR")}</small></div>`).join("")||"<small>Sem registros.</small>"}</div>`}
+async function backup(){
+  const d=await claude.use("downloads");if(!d){alert("Download indisponível aqui.");return}
+  try{await d.save({filename:"backup-central-"+TODAY+".json",data:JSON.stringify(S,null,2)})}catch(e){}}
+const modal=h=>{$("#md").innerHTML=h?`<div class="modal" onclick="if(event.target===this)modal('')"><div class="card">${h}</div></div>`:""};
+function openM(id){
+  const m=S.members[id];if(!m)return;
+  const cs=Object.values(S.charges).filter(c=>c.memberId===id).sort((a,b)=>b.month.localeCompare(a.month));
+  modal(`<b style="font-size:17px">${esc(m.name)}</b>${m.demo?'<span class="demo">FICTÍCIO</span>':""}<br><small>${esc(m.plate)} · ${esc(S.companies[m.companyId]?.name||"")} · ${esc(m.phone||"sem telefone")}</small>
+  <div class="bar" style="margin-top:10px"><button class="b" onclick="editM('${id}')">Editar</button><button class="b" onclick="modal('')">Fechar</button></div>
+  ${cs.map(c=>{const s=status(c);return`<div class="row" style="align-items:flex-start"><div><b>${c.month.split("-").reverse().join("/")}</b> <span class="tag ${s}">${LBL[s]}</span><br><small>Vence ${fd(c.due)} · ${brl(c.amount)} · pago ${brl(c.paid)}</small>${(c.payments||[]).map(p=>`<br><small>↳ ${brl(p.amount)} em ${fd(p.date)} (${esc(p.method)})</small>`).join("")}</div>${s!=="paid"?`<div style="display:flex;flex-direction:column;gap:4px"><button class="b p" onclick="payF('${c.id||m.id+"_"+c.month}')">Pagar</button><button class="b" onclick="wa('${m.id+"_"+c.month}')">WhatsApp</button></div>`:""}</div>`}).join("")||"<small>Sem mensalidades.</small>"}`)}
+function payF(cid){const c=S.charges[cid];
+  modal(`<b>Registrar pagamento</b><br><small>${esc(c.name)} · em aberto ${brl(rem(c))}</small>
+  <label>Valor recebido (R$)</label><input id="pv" type="number" step="0.01" value="${rem(c).toFixed(2)}">
+  <label>Data</label><input id="pd" type="date" value="${TODAY}">
+  <label>Forma</label><select id="pm"><option>Pix</option><option>Dinheiro</option><option>Cartão</option><option>Outro</option></select>
+  <div class="bar" style="margin-top:14px"><button class="b p" onclick="pay('${cid}')">Confirmar</button><button class="b" onclick="openM('${c.memberId}')">Voltar</button></div>`)}
+async function pay(cid){
+  const c=S.charges[cid],v=+$("#pv").value;if(!(v>0)){alert("Informe um valor válido.");return}
+  const p={amount:v,date:$("#pd").value||TODAY,method:$("#pm").value};
+  await col("charges").doc(cid).update({paid:+((c.paid||0)+v).toFixed(2),payments:[...(c.payments||[]),p]});
+  log(`Pagamento ${brl(v)} (${p.method}) de ${c.name} ref. ${c.month}`);openM(c.memberId)}
+function wa(cid){
+  const c=S.charges[cid],m=S.members[c.memberId],late=c.due<TODAY;
+  const msg=`Olá, ${m.name.split(" ")[0]}! Tudo bem? Estamos passando para lembrar que sua mensalidade do estacionamento ${late?"venceu":"vence"} no dia ${fd(c.due).slice(0,5)}. Valor: ${brl(rem(c))}. Obrigado!`;
+  const ph=(m.phone||"").replace(/\D/g,""),num=ph&&ph.length<=11?"55"+ph:ph;
+  modal(`<b>Mensagem de cobrança</b><label>Revise antes de enviar</label><textarea id="wm" rows="6">${esc(msg)}</textarea>${num?"":"<small>Sem telefone: o WhatsApp pedirá o contato.</small>"}
+  <div class="bar" style="margin-top:12px"><a class="b p" target="_blank" rel="noopener" onclick="this.href='https://wa.me/${num}?text='+encodeURIComponent($('#wm').value);log('Abriu WhatsApp de cobrança para ${esc(m.name)}')" href="#">Abrir WhatsApp</a><button class="b" onclick="openM('${m.id}')">Voltar</button></div>`)}
+function editM(id){
+  const m=id?S.members[id]:{active:true,day:10},cs=Object.values(S.companies);
+  modal(`<b>${id?"Editar":"Novo"} mensalista</b>
+  <label>Nome completo</label><input id="f_n" value="${esc(m.name)}"><div class="two"><div><label>Placa</label><input id="f_p" value="${esc(m.plate)}"></div><div><label>Mensalidade (R$)</label><input id="f_a" type="number" step="0.01" value="${m.amount??""}"></div></div>
+  <label>Empresa</label><select id="f_c"><option value="">Sem empresa</option>${cs.map(c=>`<option value="${c.id}" ${m.companyId===c.id?"selected":""}>${esc(c.name)}</option>`).join("")}</select>
+  <div class="two"><div><label>Dia do vencimento (1-31)</label><input id="f_d" type="number" min="1" max="31" value="${m.day}"></div><div><label>WhatsApp (opcional)</label><input id="f_t" value="${esc(m.phone)}"></div></div>
+  <label>Situação</label><select id="f_s"><option value="1">Ativo</option><option value="0" ${m.active===false?"selected":""}>Inativo</option></select>
+  <label>Observações</label><textarea id="f_o" rows="2">${esc(m.notes)}</textarea>
+  <div class="bar" style="margin-top:14px"><button class="b p" onclick="saveM('${id||""}')">Salvar</button><button class="b" onclick="modal('')">Cancelar</button></div>
+  <small>Mudar o valor só afeta mensalidades futuras. O histórico é preservado.</small>`)}
+async function saveM(id){
+  const d={name:$("#f_n").value.trim(),plate:$("#f_p").value.trim().toUpperCase(),amount:+$("#f_a").value,companyId:$("#f_c").value,day:Math.min(31,Math.max(1,+$("#f_d").value||1)),phone:$("#f_t").value.trim(),active:$("#f_s").value==="1",notes:$("#f_o").value.trim()};
+  if(!d.name||!d.plate||!(d.amount>0)){alert("Preencha nome, placa e valor.");return}
+  const ref=id?col("members").doc(id):col("members").doc();
+  if(id){await ref.update(d);log("Editou mensalista "+d.name)}else{await ref.set({...d,createdAt:TODAY});log("Cadastrou mensalista "+d.name)}
+  modal("")}
+function editC(id){const c=id?S.companies[id]:{};
+  modal(`<b>${id?"Editar":"Nova"} empresa</b><label>Nome</label><input id="c_n" value="${esc(c.name)}"><label>Desconto (%)</label><input id="c_d" type="number" min="0" max="100" value="${c.discount||0}"><label>Condições especiais</label><textarea id="c_o" rows="2">${esc(c.notes)}</textarea>
+  <div class="bar" style="margin-top:14px"><button class="b p" onclick="saveC('${id||""}')">Salvar</button><button class="b" onclick="modal('')">Cancelar</button></div>`)}
+async function saveC(id){const d={name:$("#c_n").value.trim(),discount:+$("#c_d").value||0,notes:$("#c_o").value.trim()};if(!d.name){alert("Informe o nome.");return}
+  const ref=id?col("companies").doc(id):col("companies").doc();id?await ref.update(d):await ref.set(d);log("Salvou empresa "+d.name);modal("")}
+function sub(name,key){col(name).onSnapshot(s=>{
+  if(key==="audit")S.audit=s.docs.map(d=>d.data());else{S[key]={};s.docs.forEach(d=>S[key][d.id]={...d.data(),id:d.id})}
+  ready|=({members:1,charges:2,companies:4,audit:8})[name];
+  if(ready===15){render();ensureCharges()}else render()},e=>{$("#main").textContent="Erro ao carregar dados."})}
+(async()=>{
+  try{db=await Promise.race([claude.use("db"),new Promise(r=>setTimeout(()=>r(null),10000))])}catch(e){}
+  if(!db){$("#main").innerHTML="<h2>Acesso necessário</h2><p>Entre com sua conta Claude para abrir a Central de Gestão. Os dados ficam salvos de forma persistente e privada.</p>";nav();return}
+  nav();sub("members","members");sub("charges","charges");sub("companies","companies");sub("audit","audit");
+})();
+</script></body></html>
